@@ -14,11 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      lectures: {
+        Row: {
+          additional_notes: string | null
+          created_at: string
+          day_of_week: number
+          id: string
+          is_active: boolean
+          lecture_time: string
+          location: string
+          professor_name: string
+          subject: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          additional_notes?: string | null
+          created_at?: string
+          day_of_week: number
+          id?: string
+          is_active?: boolean
+          lecture_time: string
+          location: string
+          professor_name: string
+          subject: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          additional_notes?: string | null
+          created_at?: string
+          day_of_week?: number
+          id?: string
+          is_active?: boolean
+          lecture_time?: string
+          location?: string
+          professor_name?: string
+          subject?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string
           id: string
           is_read: boolean
+          lecture_id: string | null
           link: string | null
           message: string
           title: string
@@ -30,6 +76,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_read?: boolean
+          lecture_id?: string | null
           link?: string | null
           message: string
           title: string
@@ -41,6 +88,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_read?: boolean
+          lecture_id?: string | null
           link?: string | null
           message?: string
           title?: string
@@ -48,7 +96,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "notifications_lecture_id_fkey"
+            columns: ["lecture_id"]
+            isOneToOne: false
+            referencedRelation: "lectures"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
