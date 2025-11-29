@@ -7,6 +7,7 @@ interface UserProfile {
   phone_number: string | null;
   enable_whatsapp: boolean;
   enable_sms: boolean;
+  notification_time: string;
 }
 
 export const useUserProfile = () => {
@@ -40,6 +41,7 @@ export const useUserProfile = () => {
             phone_number: null,
             enable_whatsapp: false,
             enable_sms: false,
+            notification_time: '08:00:00',
           })
           .select()
           .single();

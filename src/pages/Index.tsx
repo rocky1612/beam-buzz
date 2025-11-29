@@ -100,7 +100,7 @@ const Index = () => {
 
         <div className="mt-8 p-4 bg-muted rounded-lg">
           <p className="text-sm text-muted-foreground text-center">
-            💡 Notifications are sent daily at 8:00 AM for today's lectures via in-app, WhatsApp, and SMS (if configured)
+            💡 Notifications are sent daily at your preferred time for today's lectures via in-app, WhatsApp, and SMS (if configured). Set your notification time in Settings.
           </p>
         </div>
       </main>

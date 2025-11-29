@@ -12,6 +12,7 @@ export const NotificationSettings = () => {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [enableWhatsApp, setEnableWhatsApp] = useState(false);
   const [enableSMS, setEnableSMS] = useState(false);
+  const [notificationTime, setNotificationTime] = useState("08:00");
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -19,6 +20,8 @@ export const NotificationSettings = () => {
       setPhoneNumber(profile.phone_number || "");
       setEnableWhatsApp(profile.enable_whatsapp);
       setEnableSMS(profile.enable_sms);
+      // Convert from "HH:MM:SS" to "HH:MM" for input
+      setNotificationTime(profile.notification_time?.substring(0, 5) || "08:00");
     }
   }, [profile]);
 
@@ -28,6 +31,7 @@ export const NotificationSettings = () => {
       phone_number: phoneNumber || null,
       enable_whatsapp: enableWhatsApp,
       enable_sms: enableSMS,
+      notification_time: notificationTime + ":00", // Convert "HH:MM" to "HH:MM:SS"
     });
     setIsSaving(false);
   };
@@ -51,6 +55,19 @@ export const NotificationSettings = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        <div className="space-y-2">
+          <Label htmlFor="notification-time">Notification Time</Label>
+          <Input
+            id="notification-time"
+            type="time"
+            value={notificationTime}
+            onChange={(e) => setNotificationTime(e.target.value)}
+          />
+          <p className="text-sm text-muted-foreground">
+            Set when you want to receive daily lecture notifications
+          </p>
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="phone">Phone Number</Label>
           <Input

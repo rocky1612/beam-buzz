@@ -112,6 +112,7 @@ export type Database = {
           enable_sms: boolean | null
           enable_whatsapp: boolean | null
           id: string
+          notification_time: string | null
           phone_number: string | null
           updated_at: string | null
         }
@@ -120,6 +121,7 @@ export type Database = {
           enable_sms?: boolean | null
           enable_whatsapp?: boolean | null
           id: string
+          notification_time?: string | null
           phone_number?: string | null
           updated_at?: string | null
         }
@@ -128,6 +130,7 @@ export type Database = {
           enable_sms?: boolean | null
           enable_whatsapp?: boolean | null
           id?: string
+          notification_time?: string | null
           phone_number?: string | null
           updated_at?: string | null
         }

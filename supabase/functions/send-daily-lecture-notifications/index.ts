@@ -17,11 +17,14 @@ Deno.serve(async (req) => {
 
     console.log('Starting daily lecture notification job...')
 
-    // Get current day of week (0 = Sunday, 6 = Saturday)
+    // Get current day of week (0 = Sunday, 6 = Saturday) and current hour
     const now = new Date()
     const dayOfWeek = now.getDay()
+    const currentHour = now.getHours()
+    const currentMinute = now.getMinutes()
+    const currentTime = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}:00`
 
-    console.log(`Today is day ${dayOfWeek}`)
+    console.log(`Today is day ${dayOfWeek}, current time: ${currentTime}`)
 
     // Get all active lectures for today
     const { data: lectures, error: lecturesError } = await supabase
@@ -70,12 +73,28 @@ Deno.serve(async (req) => {
     let externalMessageCount = 0
     for (const lecture of lectures) {
       try {
-        // Get user profile for phone number and preferences
+        // Get user profile for phone number, preferences, and notification time
         const { data: profile } = await supabase
           .from('profiles')
-          .select('phone_number, enable_whatsapp, enable_sms')
+          .select('phone_number, enable_whatsapp, enable_sms, notification_time')
           .eq('id', lecture.user_id)
           .single()
+
+        // Check if it's time to send notification for this user
+        if (profile?.notification_time) {
+          const userNotificationTime = profile.notification_time.substring(0, 5) // Get HH:MM
+          const currentTimeShort = currentTime.substring(0, 5) // Get HH:MM
+          
+          // Skip if not the user's preferred notification time (within 30-minute window)
+          const userMinutes = parseInt(userNotificationTime.split(':')[0]) * 60 + parseInt(userNotificationTime.split(':')[1])
+          const currentMinutes = parseInt(currentTimeShort.split(':')[0]) * 60 + parseInt(currentTimeShort.split(':')[1])
+          
+          // Allow 30-minute window for notification
+          if (Math.abs(currentMinutes - userMinutes) > 30) {
+            console.log(`Skipping notification for user ${lecture.user_id} - not their notification time yet`)
+            continue
+          }
+        }
 
         if (profile?.phone_number) {
           const message = `🎓 Today's Lecture: ${lecture.subject}\n\n${lecture.title}\n📍 ${lecture.location}\n⏰ ${lecture.lecture_time}\n👨‍🏫 ${lecture.professor_name}${lecture.additional_notes ? '\n📝 ' + lecture.additional_notes : ''}`
