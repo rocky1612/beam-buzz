@@ -3,11 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { NotificationSettings } from "@/components/notifications/NotificationSettings";
 import { LectureForm } from "@/components/lectures/LectureForm";
 import { LectureList } from "@/components/lectures/LectureList";
 import { useLectures } from "@/hooks/useLectures";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { GraduationCap, Calendar } from "lucide-react";
+import { GraduationCap, Calendar, Settings } from "lucide-react";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -69,7 +70,7 @@ const Index = () => {
 
       <main className="container mx-auto px-4 py-8">
         <Tabs defaultValue="schedule" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="schedule">
               <Calendar className="h-4 w-4 mr-2" />
               My Schedule
@@ -77,6 +78,10 @@ const Index = () => {
             <TabsTrigger value="add">
               <GraduationCap className="h-4 w-4 mr-2" />
               Add Lecture
+            </TabsTrigger>
+            <TabsTrigger value="settings">
+              <Settings className="h-4 w-4 mr-2" />
+              Settings
             </TabsTrigger>
           </TabsList>
 
@@ -87,11 +92,15 @@ const Index = () => {
           <TabsContent value="add">
             <LectureForm onSubmit={addLecture} isLoading={isLoading} />
           </TabsContent>
+
+          <TabsContent value="settings">
+            <NotificationSettings />
+          </TabsContent>
         </Tabs>
 
         <div className="mt-8 p-4 bg-muted rounded-lg">
           <p className="text-sm text-muted-foreground text-center">
-            💡 Notifications are sent daily at 8:00 AM for today's lectures
+            💡 Notifications are sent daily at 8:00 AM for today's lectures via in-app, WhatsApp, and SMS (if configured)
           </p>
         </div>
       </main>
