@@ -66,10 +66,74 @@ Deno.serve(async (req) => {
 
     console.log(`Successfully created ${createdNotifications?.length || 0} notifications`)
 
+    // Send WhatsApp and SMS notifications
+    let externalMessageCount = 0
+    for (const lecture of lectures) {
+      try {
+        // Get user profile for phone number and preferences
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('phone_number, enable_whatsapp, enable_sms')
+          .eq('id', lecture.user_id)
+          .single()
+
+        if (profile?.phone_number) {
+          const message = `🎓 Today's Lecture: ${lecture.subject}\n\n${lecture.title}\n📍 ${lecture.location}\n⏰ ${lecture.lecture_time}\n👨‍🏫 ${lecture.professor_name}${lecture.additional_notes ? '\n📝 ' + lecture.additional_notes : ''}`
+
+          // Send WhatsApp if enabled
+          if (profile.enable_whatsapp) {
+            try {
+              const whatsappResponse = await supabase.functions.invoke('send-twilio-message', {
+                body: {
+                  to: profile.phone_number,
+                  message,
+                  type: 'whatsapp'
+                }
+              })
+              if (whatsappResponse.error) {
+                console.error('WhatsApp error:', whatsappResponse.error)
+              } else {
+                externalMessageCount++
+                console.log('WhatsApp sent to:', profile.phone_number)
+              }
+            } catch (error) {
+              console.error('WhatsApp send failed:', error)
+            }
+          }
+
+          // Send SMS if enabled
+          if (profile.enable_sms) {
+            try {
+              const smsResponse = await supabase.functions.invoke('send-twilio-message', {
+                body: {
+                  to: profile.phone_number,
+                  message,
+                  type: 'sms'
+                }
+              })
+              if (smsResponse.error) {
+                console.error('SMS error:', smsResponse.error)
+              } else {
+                externalMessageCount++
+                console.log('SMS sent to:', profile.phone_number)
+              }
+            } catch (error) {
+              console.error('SMS send failed:', error)
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error sending external notification:', error)
+      }
+    }
+
+    console.log(`Sent ${externalMessageCount} external messages (WhatsApp/SMS)`)
+
     return new Response(
       JSON.stringify({
         message: 'Daily lecture notifications sent successfully',
-        count: createdNotifications?.length || 0,
+        inAppCount: createdNotifications?.length || 0,
+        externalCount: externalMessageCount,
         day: dayOfWeek,
       }),
       {
