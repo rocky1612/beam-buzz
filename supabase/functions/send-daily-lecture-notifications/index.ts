@@ -17,14 +17,20 @@ Deno.serve(async (req) => {
 
     console.log('Starting daily lecture notification job...')
 
-    // Get current day of week (0 = Sunday, 6 = Saturday) and current hour
+    // Use IST timezone (UTC+5:30) for India
     const now = new Date()
-    const dayOfWeek = now.getDay()
-    const currentHour = now.getHours()
-    const currentMinute = now.getMinutes()
+    const istOffset = 5.5 * 60 * 60 * 1000 // IST is UTC+5:30
+    const istNow = new Date(now.getTime() + istOffset)
+    
+    const dayOfWeek = istNow.getUTCDay()
+    const currentHour = istNow.getUTCHours()
+    const currentMinute = istNow.getUTCMinutes()
     const currentTime = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}:00`
+    
+    // Get today's date in IST for deduplication
+    const todayIST = istNow.toISOString().split('T')[0]
 
-    console.log(`Today is day ${dayOfWeek}, current time: ${currentTime}`)
+    console.log(`IST Time: ${istNow.toISOString()}, Day: ${dayOfWeek}, Time: ${currentTime}`)
 
     // Get all active lectures for today
     const { data: lectures, error: lecturesError } = await supabase
@@ -47,30 +53,9 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Create notifications for each lecture
-    const notifications = lectures.map(lecture => ({
-      user_id: lecture.user_id,
-      lecture_id: lecture.id,
-      title: `Today's Lecture: ${lecture.subject}`,
-      message: `${lecture.title}\n📍 Location: ${lecture.location}\n⏰ Time: ${lecture.lecture_time}\n👨‍🏫 Professor: ${lecture.professor_name}${lecture.additional_notes ? '\n📝 Note: ' + lecture.additional_notes : ''}`,
-      type: 'lecture',
-      is_read: false,
-    }))
-
-    const { data: createdNotifications, error: notificationsError } = await supabase
-      .from('notifications')
-      .insert(notifications)
-      .select()
-
-    if (notificationsError) {
-      console.error('Error creating notifications:', notificationsError)
-      throw notificationsError
-    }
-
-    console.log(`Successfully created ${createdNotifications?.length || 0} notifications`)
-
-    // Send WhatsApp and SMS notifications
+    let createdNotificationsCount = 0
     let externalMessageCount = 0
+
     for (const lecture of lectures) {
       try {
         // Get user profile for phone number, preferences, and notification time
@@ -80,23 +65,62 @@ Deno.serve(async (req) => {
           .eq('id', lecture.user_id)
           .single()
 
-        // Check if it's time to send notification for this user
+        // Check if it's the right time to notify this user
+        let shouldNotify = true
         if (profile?.notification_time) {
-          const userNotificationTime = profile.notification_time.substring(0, 5) // Get HH:MM
-          const currentTimeShort = currentTime.substring(0, 5) // Get HH:MM
+          const userNotificationTime = profile.notification_time.substring(0, 5) // HH:MM
+          const currentTimeShort = currentTime.substring(0, 5) // HH:MM
           
-          // Skip if not the user's preferred notification time (within 30-minute window)
           const userMinutes = parseInt(userNotificationTime.split(':')[0]) * 60 + parseInt(userNotificationTime.split(':')[1])
           const currentMinutes = parseInt(currentTimeShort.split(':')[0]) * 60 + parseInt(currentTimeShort.split(':')[1])
           
-          // Allow 30-minute window for notification
+          // Only notify within 30-minute window of user's preferred time
           if (Math.abs(currentMinutes - userMinutes) > 30) {
-            console.log(`Skipping notification for user ${lecture.user_id} - not their notification time yet`)
-            continue
+            console.log(`Skipping user ${lecture.user_id} - not their notification time (preferred: ${userNotificationTime}, current: ${currentTimeShort})`)
+            shouldNotify = false
           }
         }
 
-        if (profile?.phone_number) {
+        if (!shouldNotify) continue
+
+        // Check if notification already exists for this lecture today
+        const startOfDayIST = `${todayIST}T00:00:00+05:30`
+        const endOfDayIST = `${todayIST}T23:59:59+05:30`
+        
+        const { data: existingNotification } = await supabase
+          .from('notifications')
+          .select('id')
+          .eq('lecture_id', lecture.id)
+          .eq('user_id', lecture.user_id)
+          .gte('created_at', startOfDayIST)
+          .lte('created_at', endOfDayIST)
+          .single()
+
+        if (existingNotification) {
+          console.log(`Notification already exists for lecture ${lecture.id} today, skipping in-app notification`)
+        } else {
+          // Create in-app notification
+          const { error: notificationError } = await supabase
+            .from('notifications')
+            .insert({
+              user_id: lecture.user_id,
+              lecture_id: lecture.id,
+              title: `Today's Lecture: ${lecture.subject}`,
+              message: `${lecture.title}\n📍 Location: ${lecture.location}\n⏰ Time: ${lecture.lecture_time}\n👨‍🏫 Professor: ${lecture.professor_name}${lecture.additional_notes ? '\n📝 Note: ' + lecture.additional_notes : ''}`,
+              type: 'lecture',
+              is_read: false,
+            })
+
+          if (notificationError) {
+            console.error('Error creating notification:', notificationError)
+          } else {
+            createdNotificationsCount++
+            console.log(`Created in-app notification for lecture: ${lecture.subject}`)
+          }
+        }
+
+        // Send external messages (WhatsApp/SMS) - also check for duplicates
+        if (profile?.phone_number && !existingNotification) {
           const message = `🎓 Today's Lecture: ${lecture.subject}\n\n${lecture.title}\n📍 ${lecture.location}\n⏰ ${lecture.lecture_time}\n👨‍🏫 ${lecture.professor_name}${lecture.additional_notes ? '\n📝 ' + lecture.additional_notes : ''}`
 
           // Send WhatsApp if enabled
@@ -142,18 +166,19 @@ Deno.serve(async (req) => {
           }
         }
       } catch (error) {
-        console.error('Error sending external notification:', error)
+        console.error('Error processing lecture:', lecture.id, error)
       }
     }
 
-    console.log(`Sent ${externalMessageCount} external messages (WhatsApp/SMS)`)
+    console.log(`Created ${createdNotificationsCount} in-app notifications, sent ${externalMessageCount} external messages`)
 
     return new Response(
       JSON.stringify({
-        message: 'Daily lecture notifications sent successfully',
-        inAppCount: createdNotifications?.length || 0,
+        message: 'Daily lecture notifications processed',
+        inAppCount: createdNotificationsCount,
         externalCount: externalMessageCount,
         day: dayOfWeek,
+        timeIST: currentTime,
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
